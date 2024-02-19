@@ -7,8 +7,6 @@ import pywikibot
 from pywikibot import Timestamp
 from pywikibot.page import Page, PropertyPage, User, WikibaseEntity
 
-from .evaluator import ConstraintStore
-
 
 def span_revisions(item, entry) -> Tuple[int, int]:
     base_id = entry['old_revid']
@@ -82,9 +80,9 @@ def get_revision_wrapper(item: WikibaseEntity, rev_id: int):
     for key, val in data.items():
         if val == []:
             data[key] = {}
-    base_rev._content = data
-    base_rev.get()
-    return base_rev
+    rev._content = data
+    rev.get()
+    return rev
 
 
 def revision_to_entry(revision):
@@ -96,16 +94,16 @@ def revision_to_entry(revision):
     }
 
 
-def preload_constraints(store: ConstraintStore, limit: int = 1000) -> None:
+def preload_constraints(store, limit: int = 1000, *, verbose=False) -> None:
     page = Page(store.repo, 'Template:Number of main statements by property')
 
     counts = []
-    for match in re.finditer(r'\b(\d+)=(\d+)\b', ranking.text):
+    for match in re.finditer(r'\b(\d+)=(\d+)\b', page.text):
         pid, count = map(int, match.groups())
         counts.append((count, pid))
     counts.sort(reverse=True)
 
     preload = [PropertyPage(store.repo, f'P{pid}') for _, pid in counts[:limit]]
 
-    for ppage in repo.preload_entities(preload):
+    for ppage in store.repo.preload_entities(preload):
         store.load_constraints(ppage)
