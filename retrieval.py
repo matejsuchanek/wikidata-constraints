@@ -78,11 +78,25 @@ def get_revision_wrapper(item: WikibaseEntity, rev_id: int):
     rev = cls(repo, entity_id)
     data = json.loads(item.getOldVersion(rev_id))
     for key, val in data.items():
+        # handle old serialization
         if val == []:
             data[key] = {}
+
     rev._content = data
-    rev.get()
-    return rev
+    while True:
+        try:
+            rev.get()
+        except KeyError as exc:
+            # handle deleted properties
+            key = exc.args[0]
+            if key.lower() in data['claims']:
+                data['claims'].pop(key.lower())
+            elif key.upper() in data['claims']:
+                data['claims'].pop(key.upper())
+            else:
+                raise
+        else:
+            return rev
 
 
 def revision_to_entry(revision):
