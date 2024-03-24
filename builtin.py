@@ -4,7 +4,7 @@ from decimal import Decimal
 from typing import List, Optional, Set
 
 import pywikibot
-from pywikibot import WbDataPage, WbMonolingualText, WbQuantity, WbTime
+from pywikibot import WbGeoShape, WbMonolingualText, WbQuantity, WbTabularData, WbTime
 from pywikibot.data.sparql import SparqlQuery
 from pywikibot.exceptions import NoPageError
 from pywikibot.page import Claim, Page, WikibaseEntity
@@ -199,7 +199,7 @@ class Format(ClaimConstraintType):
         target = claim.getTarget()
         if isinstance(target, WbMonolingualText):
             target = target.text
-        elif isinstance(target, WbDataPage):
+        elif isinstance(target, WbGeoShape | WbTabularData):
             target = target.page.title(with_ns=True)
         elif isinstance(target, Page):
             target = target.title(with_ns=True)
