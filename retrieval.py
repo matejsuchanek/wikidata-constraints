@@ -17,30 +17,38 @@ def span_revisions(item, entry) -> Tuple[int, int]:
         timestamp = Timestamp.fromISOformat(timestamp)
     last_timestamp = timestamp
 
+    stack = []
+
     # towards now
     for rev in item.revisions(
         starttime=timestamp.totimestampformat(),
         endtime=(timestamp + timedelta(days=5)).totimestampformat(),
         reverse=True
     ):
-        if rev['revid'] == new_id:
-            continue
-        if rev.user == last_user:
-            new_id = rev['revid']
-            last_timestamp = rev.timestamp
+        if rev.revid == entry['revid']:  # first pass
+            stack.append(rev)
             continue
 
-        delta = rev.timestamp - last_timestamp
-        if delta.total_seconds() < 900:
+        last = stack[-1]
+        stack.append(rev)
+        if rev.user == last.user:
+            continue
+
+        delta = rev.timestamp - last.timestamp
+        if delta.total_seconds() < 900 and not rev.userhidden:
             the_user = User(item.site, rev.user)
             if not the_user.isRegistered() \
                or 'autoconfirmed' not in the_user.groups():
-                new_id = rev['revid']
-                last_timestamp = rev.timestamp
-                last_user = rev.user
                 continue
 
         break
+
+    while stack and not stack[-1].text:
+        stack.pop()
+
+    new_id = stack[-1].revid
+
+    stack = []
 
     # towards past
     for rev in item.revisions(
@@ -48,24 +56,28 @@ def span_revisions(item, entry) -> Tuple[int, int]:
         endtime=(timestamp - timedelta(days=5)).totimestampformat(),
         reverse=False
     ):
-        if rev['revid'] == new_id:
+        if rev.revid == entry['revid']:  # first pass
+            stack.append(rev)
             continue
-        if rev.user == last_user:
-            base_id = rev.parentid
-            last_timestamp = rev.timestamp
+        if rev.user == stack[-1].user:
+            stack.append(rev)
             continue
 
-        delta = last_timestamp - rev.timestamp
-        if delta.total_seconds() < 900:
+        delta = stack[-1].timestamp - rev.timestamp
+        if delta.total_seconds() < 900 and not rev.userhidden:
             the_user = User(item.site, rev.user)
             if not the_user.isRegistered() \
                or 'autoconfirmed' not in the_user.groups():
-                new_id = rev['revid']
-                last_timestamp = rev.timestamp
-                last_user = rev.user
+                stack.append(rev)
                 continue
 
+        stack.append(rev)
         break
+
+    while len(stack) > 1 and not stack[-1].text:
+        stack.pop()
+
+    base_id = stack[-1].revid
 
     return base_id, new_id
 
