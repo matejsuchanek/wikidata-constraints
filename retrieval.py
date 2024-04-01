@@ -43,6 +43,7 @@ def span_revisions(item, entry) -> Tuple[int, int]:
 
         break
 
+    first_is_base = False
 
     # towards past
     for rev in item.revisions(
@@ -65,17 +66,24 @@ def span_revisions(item, entry) -> Tuple[int, int]:
                or 'autoconfirmed' not in the_user.groups():
                 continue
 
+        first_is_base = True
         break
 
-    # deleted revisions
-    for rev in queue:
-        if item.getOldVersion(rev.revid):
-            base_id = rev.revid
-            break
-
+    # handle deleted revisions
     for rev in reversed(queue):
         if item.getOldVersion(rev.revid):
             new_id = rev.revid
+            break
+
+    if not first_is_base and (
+        queue[0].parentid == 0
+        or item.getOldVersion(queue[0].parentid)
+    ):
+        return queue[0].parentid, new_id
+
+    for rev in queue:
+        if item.getOldVersion(rev.revid):
+            base_id = rev.revid
             break
 
     return base_id, new_id
