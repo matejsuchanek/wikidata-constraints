@@ -1,5 +1,6 @@
 import json
 import re
+from collections import deque
 from datetime import timedelta
 from typing import Tuple
 
@@ -11,13 +12,11 @@ from pywikibot.page import Page, PropertyPage, User, WikibaseEntity
 def span_revisions(item, entry) -> Tuple[int, int]:
     base_id = entry['old_revid']
     new_id = entry['revid']
-    last_user = user = entry['user']
     timestamp = entry['timestamp']
     if not isinstance(timestamp, Timestamp):
         timestamp = Timestamp.fromISOformat(timestamp)
-    last_timestamp = timestamp
 
-    stack = []
+    queue = deque()
 
     # towards now
     for rev in item.revisions(
@@ -25,13 +24,13 @@ def span_revisions(item, entry) -> Tuple[int, int]:
         endtime=(timestamp + timedelta(days=5)).totimestampformat(),
         reverse=True
     ):
-        if rev.revid == entry['revid']:  # first pass
-            stack.append(rev)
+        if rev.revid == new_id:  # first pass
+            queue.append(rev)
             continue
 
-        last = stack[-1]
-        stack.append(rev)
+        last = queue[-1]
         if rev.user == last.user:
+            queue.append(rev)
             continue
 
         delta = rev.timestamp - last.timestamp
@@ -39,16 +38,11 @@ def span_revisions(item, entry) -> Tuple[int, int]:
             the_user = User(item.site, rev.user)
             if not the_user.isRegistered() \
                or 'autoconfirmed' not in the_user.groups():
+                queue.append(rev)
                 continue
 
         break
 
-    while stack and not stack[-1].text:
-        stack.pop()
-
-    new_id = stack[-1].revid
-
-    stack = []
 
     # towards past
     for rev in item.revisions(
@@ -56,28 +50,33 @@ def span_revisions(item, entry) -> Tuple[int, int]:
         endtime=(timestamp - timedelta(days=5)).totimestampformat(),
         reverse=False
     ):
-        if rev.revid == entry['revid']:  # first pass
-            stack.append(rev)
-            continue
-        if rev.user == stack[-1].user:
-            stack.append(rev)
+        if rev.revid == new_id:  # first pass
             continue
 
-        delta = stack[-1].timestamp - rev.timestamp
+        last = queue[0]
+        queue.appendleft(rev)
+        if rev.user == last.user:
+            continue
+
+        delta = last.timestamp - rev.timestamp
         if delta.total_seconds() < 900 and not rev.userhidden:
             the_user = User(item.site, rev.user)
             if not the_user.isRegistered() \
                or 'autoconfirmed' not in the_user.groups():
-                stack.append(rev)
                 continue
 
-        stack.append(rev)
         break
 
-    while len(stack) > 1 and not stack[-1].text:
-        stack.pop()
+    # deleted revisions
+    for rev in queue:
+        if item.getOldVersion(rev.revid):
+            base_id = rev.revid
+            break
 
-    base_id = stack[-1].revid
+    for rev in reversed(queue):
+        if item.getOldVersion(rev.revid):
+            new_id = rev.revid
+            break
 
     return base_id, new_id
 
@@ -115,7 +114,6 @@ def revision_to_entry(revision):
     return {
         'old_revid': revision.parentid,
         'revid': revision.revid,
-        'user': revision.user,
         'timestamp': revision.timestamp,
     }
 
