@@ -564,6 +564,9 @@ class ConstraintEvaluator:
 
         added = new_rev.claims.keys() - old_rev.claims.keys()
         removed = old_rev.claims.keys() - new_rev.claims.keys()
+        if current:
+            added &= current.claims.keys()
+            removed -= current.claims.keys()
 
         for prop in added:
             for constr in self.store.get_constraints(prop, type=specifier):
