@@ -24,6 +24,9 @@ def span_revisions(item, entry) -> Tuple[int, int]:
         endtime=(timestamp + timedelta(days=5)).totimestampformat(),
         reverse=True
     ):
+        if rev.revid < new_id:  # timestamp match
+            continue
+
         if rev.revid == new_id:  # first pass
             queue.append(rev)
             continue
@@ -51,7 +54,7 @@ def span_revisions(item, entry) -> Tuple[int, int]:
         endtime=(timestamp - timedelta(days=5)).totimestampformat(),
         reverse=False
     ):
-        if rev.revid == new_id:  # first pass
+        if rev.revid >= new_id:  # first pass
             continue
 
         last = queue[0]
