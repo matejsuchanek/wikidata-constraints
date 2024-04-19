@@ -6,8 +6,9 @@ from typing import List, Optional, Set
 import pywikibot
 from pywikibot import WbGeoShape, WbMonolingualText, WbQuantity, WbTabularData, WbTime
 from pywikibot.data.sparql import SparqlQuery
-from pywikibot.exceptions import NoPageError
+from pywikibot.exceptions import NoPageError, ServerError
 from pywikibot.page import Claim, Page, WikibaseEntity
+from requests.exceptions import ConnectionError
 
 from .base import ClaimConstraintType, Context, ItemConstraintType, Scope
 from .utils import cmp_key, in_values, resolve_target_entity
@@ -99,7 +100,13 @@ class SubjectType(ItemConstraintType):
                 return True
 
         query = self.pattern % ' '.join(f'wd:{x}' for x in check)
-        result = self.sparql.select(query, full_data=True)
+        try:
+            result = self.sparql.select(query, full_data=True)
+        except (ConnectionError, ServerError) as exc:
+            pywikibot.error(
+                f'{exc.__class__.__name__} occurred in SubjectType '
+                f'when running query:\n{query}')
+            raise  # TODO: handle
 
         by_base = defaultdict(set)
         for row in result:
@@ -265,7 +272,15 @@ class ValueType(ClaimConstraintType):
             self._cache.move_to_end(target.getID())
             return self._cache[target.getID()]
 
-        out = not self.sparql.ask(self.pattern % target.getID())
+        query = self.pattern % target.getID()
+        try:
+            out = not self.sparql.ask(query)
+        except (ConnectionError, ServerError) as exc:
+            pywikibot.error(
+                f'{exc.__class__.__name__} occurred in ValueType '
+                f'when running query:\n{query}')
+            raise  # TODO: handle
+
         self._cache[target.getID()] = out
         while len(self._cache) > self.CACHE_LIMIT:
             self._cache.popitem(last=False)

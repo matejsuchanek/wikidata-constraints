@@ -4,9 +4,10 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 import pywikibot
-import requests
 from pywikibot.data.sparql import SparqlQuery
+from pywikibot.exceptions import ServerError
 from pywikibot.page import Claim, PropertyPage, WikibaseEntity
+from requests.exceptions import ConnectionError
 
 from .base import ClaimConstraintType, ConstraintType, Context, Scope, Status
 from .builtin import *
@@ -405,12 +406,10 @@ class ConstraintsStore:
             try:
                 for prop in self.sparql.get_items(query, 'prop'):
                     yield from self.get_constraints(prop, type=type_)
-            except pywikibot.exceptions.ServerError as exc:
-                print(exc)
-                print(query)
-            except requests.exceptions.ConnectionError as exc:
-                print(exc)
-                print(query)
+            except (ConnectionError, ServerError) as exc:
+                pywikibot.error(
+                    f'{exc.__class__.__name__} occurred in ConstraintsStore '
+                    f'when running query:\n{query}')
 
     def purge(self, prop) -> None:
         key, _ = self._get_input(prop)
