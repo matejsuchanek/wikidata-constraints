@@ -9,7 +9,7 @@ from pywikibot import Timestamp
 from pywikibot.page import Page, PropertyPage, User, WikibaseEntity
 
 
-def span_revisions(item, entry) -> Tuple[int, int]:
+def span_revisions(item, entry, ignore_reverted=False) -> Tuple[int, int]:
     base_id = entry['old_revid']
     new_id = entry['revid']
     timestamp = entry['timestamp']
@@ -17,6 +17,7 @@ def span_revisions(item, entry) -> Tuple[int, int]:
         timestamp = Timestamp.fromISOformat(timestamp)
 
     queue = deque()
+    first_after = None
 
     # towards now
     for rev in item.revisions(
@@ -44,6 +45,7 @@ def span_revisions(item, entry) -> Tuple[int, int]:
                 queue.append(rev)
                 continue
 
+        first_after = rev
         break
 
     first_is_base = False
@@ -72,11 +74,44 @@ def span_revisions(item, entry) -> Tuple[int, int]:
         first_is_base = True
         break
 
-    # handle deleted revisions
-    for rev in reversed(queue):
-        if item.getOldVersion(rev.revid):
-            new_id = rev.revid
-            break
+    if ignore_reverted:
+        last = queue[-1]
+        new_id = last.revid
+
+        check_rollback = True
+        for rev in reversed(queue):
+            if 'mw-reverted' not in rev.tags:
+                break
+            new_id = rev.parentid
+            check_rollback = False
+
+        if check_rollback and not last.userhidden:
+            if not first_after and last.revid < item.latest_revision_id:
+                for rev in item.revisions(
+                    starttime=last.timestamp.totimestampformat(),
+                    reverse=True,
+                    total=2
+                ):
+                    if rev.revid > last.revid:
+                        first_after = rev
+                        break
+
+            if first_after and 'mw-rollback' in first_after.tags:
+                for rev in reversed(queue):
+                    if rev.user != last.user:
+                        break
+                    new_id = rev.parentid
+
+        # skip deleted revisions, too
+        while not item.getOldVersion(new_id):
+            new_id = rev.parentid
+
+    else:
+        # skip deleted revisions
+        for rev in reversed(queue):
+            if item.getOldVersion(rev.revid):
+                new_id = rev.revid
+                break
 
     if not first_is_base and (
         queue[0].parentid == 0
