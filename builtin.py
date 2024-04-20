@@ -17,6 +17,7 @@ __all__ = [
     'CommonsLink',
     'ConflictsWith',
     'DescriptionInLanguage',
+    'DifferenceWithinRange',
     'Format',
     'Integer',
     'Inverse',
@@ -413,6 +414,71 @@ class TimeRange(ClaimConstraintType):
                     return True
 
         return False
+
+
+class DifferenceWithinRange(ClaimConstraintType):
+
+    def __init__(
+        self,
+        prop: str,
+        lower: Optional[WbQuantity],
+        upper: Optional[WbQuantity]
+    ) -> None:
+        self.prop = prop
+        self.lower = lower
+        self.upper = upper
+
+    def _outside_range(self, this, other):
+        if isinstance(this, WbTime) and isinstance(other, WbTime):
+            try:
+                this_norm = this.normalize()
+                other_norm = other.normalize()
+
+                delta = this_norm.toTimestamp() - other_norm.toTimestamp()
+                years = this_norm.year - other_norm.year
+                if (this_norm.month, this_norm.day) \
+                   < (other_norm.month, other_norm.day):
+                    years -= 1
+
+                if self.lower:
+                    unit = self.lower.get_unit_item()
+                    if unit and unit.getID() == 'Q577' \
+                       and years < self.lower.amount:
+                        return True
+                    if unit and unit.getID() == 'Q573' \
+                       and delta.days < self.lower.amount:
+                        return True
+                    if unit and unit.getID() == 'Q11574' \
+                       and delta.total_seconds() < self.lower.amount:
+                        return True
+
+                if self.upper:
+                    unit = self.upper.get_unit_item()
+                    if unit and unit.getID() == 'Q577' \
+                       and years > self.upper.amount:
+                        return True
+                    if unit and unit.getID() == 'Q573' \
+                       and delta.days > self.upper.amount:
+                        return True
+                    if unit and unit.getID() == 'Q11574' \
+                       and delta.total_seconds() > self.upper.amount:
+                        return True
+
+            except ValueError as exc:
+                pywikibot.warning(exc)
+
+        return False
+
+    def violates(self, claim: Claim) -> bool:
+        if not claim.getTarget():
+            return False
+        if not claim.on_item.claims.get(self.prop):
+            return False
+
+        return all(
+            self._outside_range(claim.getTarget(), other.getTarget())
+            for other in claim.on_item.claims[self.prop]
+            if other.getTarget())
 
 
 class Units(ClaimConstraintType):

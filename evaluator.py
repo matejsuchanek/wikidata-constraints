@@ -250,6 +250,22 @@ class ConstraintsStore:
                     constraint = TimeRange(lower, upper)
                     break
 
+            elif target.getID() == 'Q21510854':
+                for qual_other, qual_lower, qual_upper in zip(
+                    claim.qualifiers.get('P2306', []),
+                    claim.qualifiers.get('P2313', []),
+                    claim.qualifiers.get('P2312', [])
+                ):
+                    if qual_other.getTarget() \
+                       and qual_lower.getSnakType() != 'somevalue' \
+                       and qual_upper.getSnakType() != 'somevalue':
+                        constraint = DifferenceWithinRange(
+                            qual_other.getTarget().getID(),
+                            qual_lower.getTarget(),
+                            qual_upper.getTarget()
+                        )
+                    break
+
             elif target.getID() == 'Q21510865':
                 classes = self._get_values(claim.qualifiers.get('P2308', []))
                 if classes:
