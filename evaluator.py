@@ -12,7 +12,7 @@ from requests.exceptions import ConnectionError
 from .base import ClaimConstraintType, ConstraintType, Context, Scope, Status
 from .builtin import *
 from .custom import *
-from .utils import cmp_key, item_has_claim
+from .utils import cmp_key, item_has_claim, iter_claim_differences
 from .performance import performance_stats
 
 
@@ -437,29 +437,6 @@ class ConstraintEvaluator:
     def __init__(self, store: ConstraintsStore) -> None:
         self.store = store
 
-    @staticmethod
-    def index_by_id(claims: List[Claim]) -> Dict[str, Claim]:
-        return {claim.snak: claim for claim in claims}
-
-    def claim_differences(self, old: WikibaseEntity, new: WikibaseEntity):
-        for prop in old.claims.keys() | new.claims.keys():
-            old_index = self.index_by_id(old.claims.get(prop, []))
-            new_index = self.index_by_id(new.claims.get(prop, []))
-            for key in old_index.keys() | new_index.keys():
-                old_claim = old_index.get(key)
-                new_claim = new_index.get(key)
-                if old_claim is None or new_claim is None:
-                    yield (old_claim, new_claim)
-                else:
-                    same = new_claim.same_as(
-                        old_claim,
-                        # TODO
-                        ignore_rank=True,
-                        ignore_quals=False,
-                        ignore_refs=False)
-                    if not same:
-                        yield (old_claim, new_claim)
-
     def evaluate_atomic_change(self, context: Context, result: Result) -> None:
         if context.new_claim is None:
             for constr in self.store.get_constraints(
@@ -561,7 +538,7 @@ class ConstraintEvaluator:
         result = Result()
 
         touched = set()
-        for old_claim, new_claim in self.claim_differences(old_rev, new_rev):
+        for old_claim, new_claim in iter_claim_differences(old_rev, new_rev):
             # ignore if dealt with (probably)
             if current:
                 if old_claim and item_has_claim(current, old_claim):

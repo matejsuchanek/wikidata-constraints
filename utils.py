@@ -1,4 +1,4 @@
-from typing import Any, Set, Tuple
+from typing import Any, Dict, List, Set, Tuple
 from pywikibot.exceptions import IsRedirectPageError
 from pywikibot.page import Claim, WikibaseEntity
 
@@ -29,3 +29,31 @@ def resolve_target_entity(target: WikibaseEntity) -> WikibaseEntity:
             return target
         except IsRedirectPageError:
             target = target.getRedirectTarget()
+
+
+def index_by_id(claims: List[Claim]) -> Dict[str, Claim]:
+    return {claim.snak: claim for claim in claims}
+
+
+def iter_claim_differences(old: WikibaseEntity, new: WikibaseEntity):
+    for prop in old.claims.keys() | new.claims.keys():
+        old_index = index_by_id(old.claims.get(prop, []))
+        new_index = index_by_id(new.claims.get(prop, []))
+        for key in old_index.keys() | new_index.keys():
+            old_claim = old_index.get(key)
+            new_claim = new_index.get(key)
+            if old_claim is None or new_claim is None:
+                yield (old_claim, new_claim)
+            else:
+                same = new_claim.same_as(
+                    old_claim,
+                    # TODO
+                    ignore_rank=True,
+                    ignore_quals=False,
+                    ignore_refs=False)
+                if not same:
+                    yield (old_claim, new_claim)
+
+
+def claim_differences(old: WikibaseEntity, new: WikibaseEntity):
+    return list(iter_claim_differences(old, new))
