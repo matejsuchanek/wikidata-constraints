@@ -1,6 +1,35 @@
+from collections import OrderedDict
 from typing import Any, Dict, List, Set, Tuple
+
 from pywikibot.exceptions import IsRedirectPageError
 from pywikibot.page import Claim, WikibaseEntity
+
+
+class LRUCache:
+
+    def __init__(self, limit: int) -> None:
+        self._cache = OrderedDict()
+        self.limit = limit
+
+    def keys(self):
+        return self._cache.keys()
+
+    def has(self, key) -> bool:
+        return key in self._cache
+
+    def get(self, key) -> Any:
+        val = self._cache[key]
+        self._cache.move_to_end(key)
+        return val
+
+    def set(self, key, val: Any) -> None:
+        self._cache[key] = val
+        self._cache.move_to_end(key)
+        self._ensure_limit()
+
+    def _ensure_limit(self) -> None:
+        while len(self._cache) > self.limit:
+            self._cache.popitem(last=False)
 
 
 def cmp_key(claim: Claim) -> Tuple[str, Any]:

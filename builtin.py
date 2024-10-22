@@ -1,5 +1,5 @@
 import re
-from collections import defaultdict, OrderedDict
+from collections import defaultdict
 from decimal import Decimal
 from typing import List, Optional, Set
 
@@ -11,7 +11,7 @@ from pywikibot.page import Claim, Page, WikibaseEntity
 from requests.exceptions import ConnectionError
 
 from .base import ClaimConstraintType, Context, ItemConstraintType, Scope
-from .utils import cmp_key, in_values, resolve_target_entity
+from .utils import cmp_key, in_values, LRUCache, resolve_target_entity
 
 __all__ = [
     'CommonsLink',
@@ -64,7 +64,7 @@ class SubjectType(ItemConstraintType):
         sparql: SparqlQuery,
         relation: List[str],
         classes: Set[str],
-        cache: Optional[OrderedDict] = None
+        cache: Optional[LRUCache] = None
     ) -> None:
         self.sparql = sparql
         self.relation = relation
@@ -74,7 +74,7 @@ class SubjectType(ItemConstraintType):
         self.pattern += 'VALUES ?base { %s } . '
         self.pattern += '?base wdt:P279+ ?super }'
 
-        self._cache = cache or OrderedDict()
+        self._cache = cache or LRUCache(self.CACHE_LIMIT)
 
     def satisfied(self, revision: WikibaseEntity) -> bool:
         check = set()
@@ -96,8 +96,7 @@ class SubjectType(ItemConstraintType):
                 cross.add((base, item))
 
         for key in cross:
-            if self._cache.get(key):
-                self._cache.move_to_end(key)
+            if self._cache.has(key) and self._cache.get(key):
                 return True
 
         query = self.pattern % ' '.join(f'wd:{x}' for x in check)
@@ -114,16 +113,12 @@ class SubjectType(ItemConstraintType):
             base = row['base'].getID()
             item = row['super'].getID()
             by_base[base].add(item)
-            self._cache[base, item] = True
+            self._cache.set((base, item), True)
 
         out = bool(cross & self._cache.keys())
         for key in cross:
             base, item = key
-            self._cache[key] = item in by_base[base]
-            self._cache.move_to_end(key)
-
-        while len(self._cache) > 1000:
-            self._cache.popitem(last=False)
+            self._cache.set(key, item in by_base[base])
 
         return out
 
@@ -262,16 +257,15 @@ class ValueType(ClaimConstraintType):
             self.pattern += '/'
         self.pattern += 'wdt:P279* ?class }'
 
-        self._cache = OrderedDict()
+        self._cache = LRUCache(self.CACHE_LIMIT)
 
     def violates(self, claim: Claim) -> bool:
         target = claim.getTarget()
         if not isinstance(target, WikibaseEntity):
             return False
 
-        if target.getID() in self._cache:
-            self._cache.move_to_end(target.getID())
-            return self._cache[target.getID()]
+        if self._cache.has(target.getID()):
+            return self._cache.get(target.getID())
 
         query = self.pattern % target.getID()
         try:
@@ -282,9 +276,7 @@ class ValueType(ClaimConstraintType):
                 f'when running query:\n{query}')
             raise  # TODO: handle
 
-        self._cache[target.getID()] = out
-        while len(self._cache) > self.CACHE_LIMIT:
-            self._cache.popitem(last=False)
+        self._cache.set(target.getID(), out)
         return out
 
 

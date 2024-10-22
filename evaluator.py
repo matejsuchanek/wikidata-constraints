@@ -1,5 +1,5 @@
 import re
-from collections import defaultdict, OrderedDict
+from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
@@ -12,7 +12,7 @@ from requests.exceptions import ConnectionError
 from .base import ClaimConstraintType, ConstraintType, Context, Scope, Status
 from .builtin import *
 from .custom import *
-from .utils import cmp_key, item_has_claim, iter_claim_differences
+from .utils import cmp_key, item_has_claim, iter_claim_differences, LRUCache
 from .performance import performance_stats
 
 
@@ -78,7 +78,7 @@ class ConstraintsStore:
         self.repo = repo
         self.sparql = sparql
         self._cache: Dict[str, List[Constraint]] = {}
-        self._caches = defaultdict(OrderedDict)
+        self._caches = defaultdict(lambda: LRUCache(1000))
 
     def _get_input(self, prop) -> Tuple[str, PropertyPage]:
         if isinstance(prop, str):
