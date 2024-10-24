@@ -6,6 +6,7 @@ from typing import Tuple
 
 import pywikibot
 from pywikibot import Timestamp
+from pywikibot.exceptions import NoWikibaseEntityError
 from pywikibot.page import Page, PropertyPage, User, WikibaseEntity
 
 
@@ -143,9 +144,16 @@ def get_revision_wrapper(item: WikibaseEntity, rev_id: int):
     while True:
         try:
             rev.get()
-        except KeyError as exc:
+        except (KeyError | NoWikibaseEntityError) as exc:
             # handle deleted properties
-            key = exc.args[0]
+            if isinstance(exc, NoWikibaseEntityError):
+                key = exc.entity.id
+            else:
+                key = exc.args[0]
+            # in theory, this isn't needed
+            if not PropertyPage.is_valid_id(key):
+                raise
+
             if key.lower() in data['claims']:
                 data['claims'].pop(key.lower())
             elif key.upper() in data['claims']:
