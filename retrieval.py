@@ -144,7 +144,7 @@ def get_revision_wrapper(item: WikibaseEntity, rev_id: int):
     while True:
         try:
             rev.get()
-        except (KeyError | NoWikibaseEntityError) as exc:
+        except (KeyError, NoWikibaseEntityError) as exc:
             # handle deleted properties
             if isinstance(exc, NoWikibaseEntityError):
                 key = exc.entity.id
