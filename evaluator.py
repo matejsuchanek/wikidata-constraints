@@ -386,7 +386,7 @@ class ConstraintsStore:
         for type_, item_id, require in [
             (ItemRequires, 'Q21503247', None),
             (ConflictsWith, 'Q21502838', None),
-            (SubjectType, 'Q21510865', {'P31', 'P279'}),
+            (SubjectType, 'Q21503250', {'P31', 'P279'}),
             (LabelInLanguage, 'Q108139345', None),
             (DescriptionInLanguage, 'Q111204896', None),
         ]:

@@ -70,9 +70,9 @@ class SubjectType(ItemConstraintType):
         self.relation = relation
         self.classes = classes
 
-        self.pattern = 'SELECT REDUCED ?base ?super { '
-        self.pattern += 'VALUES ?base { %s } . '
-        self.pattern += '?base wdt:P279+ ?super }'
+        self.pattern = 'SELECT REDUCED ?base ?super {'
+        self.pattern += ' VALUES ?base { %s } .'
+        self.pattern += ' ?base wdt:P279+ ?super }'
 
         self._cache = cache or LRUCache(self.CACHE_LIMIT)
 
@@ -95,9 +95,14 @@ class SubjectType(ItemConstraintType):
             for item in self.classes:
                 cross.add((base, item))
 
-        for key in cross:
-            if self._cache.has(key) and self._cache.get(key):
-                return True
+        if any(
+            self._cache.has(key) and self._cache.get(key)
+            for key in cross
+        ):
+            return True
+
+        if all(self._cache.has(key) for key in cross):
+            return False
 
         query = self.pattern % ' '.join(f'wd:{x}' for x in check)
         try:
@@ -115,10 +120,13 @@ class SubjectType(ItemConstraintType):
             by_base[base].add(item)
             self._cache.set((base, item), True)
 
-        out = bool(cross & self._cache.keys())
+        out = False
         for key in cross:
             base, item = key
-            self._cache.set(key, item in by_base[base])
+            val = item in by_base[base]
+            self._cache.set(key, val)
+            if val:
+                out = True
 
         return out
 
