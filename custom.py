@@ -67,6 +67,8 @@ class ValueExists(ClaimConstraintType):
 
 class NoLinksToDisambiguation(ClaimConstraintType):
 
+    _classes = ['Q4167410', 'Q22808320']
+
     def violates(self, claim: Claim) -> bool:
         target = claim.getTarget()
         if not isinstance(target, WikibaseEntity):
@@ -77,8 +79,11 @@ class NoLinksToDisambiguation(ClaimConstraintType):
         except NoPageError:
             return False
 
-        return any(cl.target_equals('Q4167410')
-                   for cl in target.claims.get('P31', []))
+        for claim in target.claims.get('P31', []):
+            if any(claim.target_equals(cl) for cl in self._classes):
+                return True
+
+        return False
 
 
 class NoSelfLink(ClaimConstraintType):
