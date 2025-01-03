@@ -10,7 +10,7 @@ from pywikibot.exceptions import NoPageError, ServerError
 from pywikibot.page import Claim, Page, WikibaseEntity
 from requests.exceptions import ConnectionError
 
-from .base import ClaimConstraintType, Context, ItemConstraintType, Scope
+from .base import ClaimConstraintType, Context, ItemConstraintType, Scope, VersionContext
 from .utils import cmp_key, in_values, LRUCache, resolve_target_entity
 
 __all__ = [
@@ -469,15 +469,16 @@ class DifferenceWithinRange(ClaimConstraintType):
 
         return False
 
-    def violates(self, claim: Claim) -> bool:
+    def violates_ctx(self, ctx: VersionContext) -> bool:
+        claim = ctx.claim
         if not claim.getTarget():
             return False
-        if not claim.on_item.claims.get(self.prop):
+        if not ctx.sibling_mapping.get(self.prop):
             return False
 
         return all(
             self._outside_range(claim.getTarget(), other.getTarget())
-            for other in claim.on_item.claims[self.prop]
+            for other in ctx.sibling_mapping[self.prop]
             if other.getTarget())
 
 

@@ -1,8 +1,9 @@
 from dataclasses import dataclass
 from enum import Enum, IntEnum
-from typing import Optional
+from typing import Optional, Union
 
 from pywikibot.page import Claim, WikibaseEntity
+
 
 Scope = Enum('Scope', ['MAIN', 'QUALIFIER', 'REFERENCE'])
 
@@ -13,12 +14,53 @@ class Status(IntEnum):
 
 
 @dataclass(eq=False, frozen=True)
+class VersionContext:
+
+    rev: WikibaseEntity
+    parent: Union[WikibaseEntity, Claim, None] = None
+    claim: Optional[WikibaseEntity] = None
+
+    @property
+    def prop(self):
+        return self.claim.getID()
+
+    @property
+    def sibling_mapping(self):
+        if isinstance(self.parent, Claim):
+            return self.parent.qualifiers
+        else:
+            return self.parent.claims
+
+    @classmethod
+    def new_for_claim(cls, rev: WikibaseEntity, claim: Claim):
+        return cls(rev, rev, claim)
+
+    def for_qualifier(self, qual: Optional[Claim]):
+        assert self.claim is not None
+        return VersionContext(self.rev, self.claim, qual)
+
+
+@dataclass(eq=False, frozen=True)
 class Context:
 
-    old_rev: WikibaseEntity
-    new_rev: WikibaseEntity
-    old_claim: Optional[Claim]
-    new_claim: Optional[Claim]
+    old: VersionContext
+    new: VersionContext
+
+    @property
+    def old_rev(self):
+        return self.old.rev
+
+    @property
+    def new_rev(self):
+        return self.new.rev
+
+    @property
+    def old_claim(self):
+        return self.old.claim
+
+    @property
+    def new_claim(self):
+        return self.new.claim
 
     @property
     def prop(self):
@@ -50,14 +92,17 @@ class ConstraintType:
 class ClaimConstraintType(ConstraintType):
 
     def score_for_addition(self, context: Context):
-        return int(self.violates(context.new_claim))
+        return int(self.violates_ctx(context.new))
 
     def score_for_removal(self, context: Context):
-        return -int(self.violates(context.old_claim))
+        return -int(self.violates_ctx(context.old))
 
     def score_for_update(self, context: Context):
-        return int(self.violates(context.new_claim)) \
-               - int(self.violates(context.old_claim))
+        return int(self.violates_ctx(context.new)) \
+               - int(self.violates_ctx(context.old))
+
+    def violates_ctx(self, ctx: VersionContext) -> bool:
+        return self.violates(ctx.claim)
 
     def violates(self, claim: Claim) -> bool:
         raise NotImplementedError

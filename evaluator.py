@@ -9,7 +9,7 @@ from pywikibot.exceptions import ServerError
 from pywikibot.page import Claim, PropertyPage, WikibaseEntity
 from requests.exceptions import ConnectionError
 
-from .base import ClaimConstraintType, ConstraintType, Context, Scope, Status
+from .base import ClaimConstraintType, ConstraintType, Context, Scope, Status, VersionContext
 from .builtin import *
 from .custom import *
 from .utils import cmp_key, item_has_claim, iter_claim_differences, LRUCache
@@ -460,7 +460,10 @@ class ConstraintEvaluator:
                     scope=Scope.QUALIFIER
                 ):
                     for qual in values:
-                        ctx = Context(context.old_rev, context.new_rev, None, qual)
+                        ctx = Context(
+                            context.old.for_qualifier(None),
+                            context.new.for_qualifier(qual)
+                        )
                         constr.handle_addition(ctx, result)
 
         else:
@@ -510,21 +513,24 @@ class ConstraintEvaluator:
                         scope=Scope.QUALIFIER
                     ):
                         if len(added) == 1 == len(removed):
-                            for qual_r, qual_add in zip(removed, added):
-                                ctx = Context(context.old_rev,
-                                              context.new_rev,
-                                              qual_r, qual_add)
+                            for qual_rem, qual_add in zip(removed, added):
+                                ctx = Context(
+                                    context.old.for_qualifier(qual_rem),
+                                    context.new.for_qualifier(qual_add)
+                                )
                                 constr.handle_update(ctx, result)
                         else:
                             for qual in added:
-                                ctx = Context(context.old_rev,
-                                              context.new_rev,
-                                              None, qual)
+                                ctx = Context(
+                                    context.old.for_qualifier(None),
+                                    context.new.for_qualifier(qual)
+                                )
                                 constr.handle_addition(ctx, result)
                             for qual in removed:
-                                ctx = Context(context.old_rev,
-                                              context.new_rev,
-                                              qual, None)
+                                ctx = Context(
+                                    context.old.for_qualifier(qual),
+                                    context.new.for_qualifier(None)
+                                )
                                 constr.handle_removal(ctx, result)
             # TODO: references
 
@@ -547,11 +553,14 @@ class ConstraintEvaluator:
                    and new_claim.getID() not in current.claims:
                     continue
 
-            context = Context(old_rev, new_rev, old_claim, new_claim)
+            context = Context(
+                VersionContext.new_for_claim(old_rev, old_claim),
+                VersionContext.new_for_claim(new_rev, new_claim)
+            )
             self.evaluate_atomic_change(context, result)
             touched.add(context.prop)
 
-        context = Context(old_rev, new_rev, None, None)
+        context = Context(VersionContext(old_rev), VersionContext(new_rev))
         specifier = (ItemRequires, ConflictsWith, SubjectType)
 
         added = new_rev.claims.keys() - old_rev.claims.keys()
