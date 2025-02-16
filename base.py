@@ -18,7 +18,7 @@ class VersionContext:
 
     rev: WikibaseEntity
     parent: Union[WikibaseEntity, Claim, None] = None
-    claim: Optional[WikibaseEntity] = None
+    claim: Optional[Claim] = None
 
     @property
     def prop(self):

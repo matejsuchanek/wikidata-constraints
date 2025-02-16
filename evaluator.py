@@ -461,7 +461,8 @@ class ConstraintEvaluator:
                 ):
                     for qual in values:
                         ctx = Context(
-                            context.old.for_qualifier(None),
+                            # "new" because of the assertion
+                            context.new.for_qualifier(None),
                             context.new.for_qualifier(qual)
                         )
                         constr.handle_addition(ctx, result)
