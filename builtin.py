@@ -33,6 +33,7 @@ __all__ = [
     'SubjectType',
     'Symmetric',
     'TimeRange',
+    'UniqueValue',
     'Units',
     'ValueRequires',
     'ValueType',
@@ -325,6 +326,42 @@ class Inverse(ClaimConstraintType):
 
         return all(not cl.target_equals(claim.on_item)
                    for cl in target.claims.get(self.prop, []))
+
+    @property
+    def scopes(self):
+        return {Scope.MAIN}
+
+
+class UniqueValue(ClaimConstraintType):
+
+    def __init__(self, sparql: SparqlQuery) -> None:
+        self.sparql = sparql
+
+    def violates(self, claim: Claim) -> bool:
+        try:
+            target = claim.getTarget()
+        except ValueError:
+            target = None
+
+        if not target:
+            return False
+
+        # TODO: other datatypes
+        if isinstance(target, str):
+            if claim.type in ('string', 'external-id'):
+                literal = f'"{target}"'
+            elif claim.type == 'url':
+                literal = f'<{target}>'
+        elif isinstance(target, WikibaseEntity):
+            literal = 'wd:' + target.getID()
+        elif isinstance(target, WbMonolingualText):
+            literal = f'"{target.text}"@{target.language}'
+        else:
+            return False
+
+        query = 'ASK { ?item wdt:%s %s FILTER( ?item != wd:%s ) }' \
+                % (claim.id, literal, claim.on_item.getID())
+        return self.sparql.ask(query)
 
     @property
     def scopes(self):

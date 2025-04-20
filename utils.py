@@ -51,6 +51,18 @@ def item_has_claim(item: WikibaseEntity, claim: Claim, **kwargs) -> bool:
         return False
 
 
+def get_best_claims(mapping, id_: str):
+    best = []
+    rank = 'normal'
+    for claim in mapping.get(id_, []):
+        if claim.rank == 'preferred':
+            rank = 'preferred'
+            best = []
+        if claim.rank == rank:
+            best.append(claim)
+    return best
+
+
 def resolve_target_entity(target: WikibaseEntity) -> WikibaseEntity:
     while True:
         try:

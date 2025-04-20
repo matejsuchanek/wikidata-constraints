@@ -1,10 +1,12 @@
+import requests
+
 from pywikibot import WbQuantity
 from pywikibot.exceptions import IsRedirectPageError, NoPageError
-from pywikibot.page import Claim, WikibaseEntity
+from pywikibot.page import Claim, PropertyPage, WikibaseEntity
 
 from .base import ClaimConstraintType, Context, Scope
 from .builtin import PropertyScope
-from .utils import cmp_key, resolve_target_entity
+from .utils import cmp_key, get_best_claims, resolve_target_entity
 
 __all__ = [
     'HasValidReference',
@@ -13,6 +15,7 @@ __all__ = [
     'NoSelfLink',
     'SandboxProperty',
     'ValueExists',
+    'Error404',
 ]
 
 class HasValidReference(ClaimConstraintType):
@@ -121,3 +124,24 @@ class LargeChange(ClaimConstraintType):
 
     def violates(self, claim: Claim) -> bool:
         return False
+
+
+class Error404(ClaimConstraintType):
+
+    def violates(self, claim: Claim) -> bool:
+        value = claim.getTarget()
+        if not value:
+            return False
+
+        ppage = PropertyPage(claim.repo, claim.id)
+        best = get_best_claims(ppage.claims, 'P1630')
+        if not best:
+            return False
+
+        formatter = best[0].getTarget()
+        if not formater:
+            return False
+
+        url = formatter.replace('$1', value)
+        resp = requests.get(url)
+        return not resp.ok

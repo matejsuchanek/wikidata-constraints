@@ -163,10 +163,14 @@ class ConstraintsStore:
                     if qual.getTarget():
                         values.add(qual.getTarget())
                 if values:
+                    values.add('mul')
                     if target.getID() == 'Q108139345':
                         constraint = LabelInLanguage(values)
                     elif target.getID() == 'Q111204896':
                         constraint = DescriptionInLanguage(values)
+
+            elif target.getID() == 'Q21502410':
+                constraint = UniqueValue(self.sparql)
 
             elif target.getID() == 'Q21503247':
                 constraint = self._get_pv_constraint(
@@ -377,6 +381,14 @@ class ConstraintsStore:
                 None,
                 LargeChange(),
                 Status.SUGGESTION,
+                set(Scope)
+            ))
+        if page.type == 'external-id':
+            out.append(Constraint(
+                page.getID(),
+                None,
+                Error404(),
+                Status.REGULAR,
                 set(Scope)
             ))
         self._cache[page.getID()] = out
