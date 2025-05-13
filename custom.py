@@ -139,7 +139,7 @@ class Error404(ClaimConstraintType):
             return False
 
         formatter = best[0].getTarget()
-        if not formater:
+        if not formatter:
             return False
 
         url = formatter.replace('$1', value)
